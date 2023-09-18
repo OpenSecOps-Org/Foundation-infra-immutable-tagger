@@ -1,0 +1,178 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Handler: app.lambda_handler
+    Timeout: 900
+    MemorySize: 160
+
+Description: >
+  SAM project to tag infrastructure CloudFormation can't reach.
+
+Parameters:
+  RoleToAssume:
+    Type: String
+    Description: The role to assume in other accounts. Must be SCP-exempt.
+      Use AWSControlTowerExecution under CT, OrganizationAccountAccessRole otherwise.
+    Default: 'AWSControlTowerExecution'
+
+  AccountCreatedTopicArn:
+    Type: String
+    Description: The ARN of the new-account-created SNS Topic
+    Default: arn:aws:sns:eu-north-1:111111111111:new-account-created
+
+  AccountCreatedTopicArnRegion:
+    Type: String
+    Description: The region where the AccountCreatedTopicArn resides (same as in the ARN string)
+    Default: eu-north-1
+
+  Prefixes:
+    Type: String
+    Description: Comma-separated list of Event name prefixes to Tag.
+    Default: "INFRA-,StackSet-INFRA-"
+
+# ------------------------------------------------------------------------------
+
+Resources:
+  TriggerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/trigger/
+      Events:
+        ExternalNewAccountCreatedEvent:
+          Type: SNS
+          Properties:
+            Topic: !Ref AccountCreatedTopicArn
+            Region: !Ref AccountCreatedTopicArnRegion
+        PeriodicTagging:
+          Type: Schedule
+          Properties:
+            Schedule: 'cron(0 6 * * ? *)'
+            Input: '{"AccountId": "ALL"}'
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Ref InfraImmutableTaggerSM
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - states:StartExecution
+              Resource:
+                - !Ref InfraImmutableTaggerSM
+            - Sid: MainPermissions
+              Effect: Allow
+              Action:
+                - organizations:ListAccounts
+              Resource: '*'
+
+  LambdaResourcePolicy:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TriggerFunction
+      Principal: sns.amazonaws.com
+      Action: lambda:InvokeFunction
+      SourceArn: !Ref AccountCreatedTopicArn
+
+  SubscribeLambdaToSns:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !GetAtt TriggerFunction.Arn
+      Protocol: lambda
+      TopicArn: !Ref AccountCreatedTopicArn
+      Region: !Ref AccountCreatedTopicArnRegion
+
+  # ------------------------------------------------------------------------------
+
+  InfraImmutableTaggerSM:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: statemachine/tag_infrastructure.asl.yaml
+      DefinitionSubstitutions:
+        TagEventRulesFunctionArn: !GetAtt TagEventRulesFunction.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref TagEventRulesFunction
+
+  TagEventRulesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/tag_event_rules/
+      Policies:
+        - Statement:
+            - Sid: AssumeTheRole
+              Effect: Allow
+              Action:
+                - sts:AssumeRole
+              Resource: !Sub 'arn:aws:iam::*:role/${RoleToAssume}'
+            - Sid: MainPermissions
+              Effect: Allow
+              Action:
+                - events:ListEventBuses
+                - events:ListRules
+                - events:TagResource
+              Resource: '*'
+      Environment:
+        Variables:
+          ROLE_TO_ASSUME: !Ref RoleToAssume
+          PREFIXES: !Ref Prefixes
+
+
+  #-------------------------------------------------------------------------------
+  #
+  # Monitoring. For state machines, only the state machine itself should be
+  # monitored as they orchestrate the lambda functions which are expected to fail
+  # in certain circumstances without this constituting a processing failure.
+  #
+  # Lambdas not in state machines should be monitored individually.
+  #
+  # One or more CloudWatch alarms are created using the naming conventions used by
+  # the logic defined in the "all-alarms-to-sec-hub" SAM project. This will
+  # automatically create incidents and tickets in ServiceNow or Jira.
+  #
+  #-------------------------------------------------------------------------------
+
+  AlarmConfigureAccountForSecHub:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: INFRA-InfraImmutableTaggerSM-Failure-MEDIUM
+      AlarmDescription: The state machine InfraImmutableTaggerSM failed.
+      ActionsEnabled: true
+      OKActions: []
+      AlarmActions: []
+      InsufficientDataActions: []
+      MetricName: ExecutionsFailed
+      Namespace: AWS/States
+      Statistic: Sum
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref InfraImmutableTaggerSM
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  AlarmTriggerFunction:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: INFRA-InfraImmutableTaggerTriggerFunction-MEDIUM
+      AlarmDescription: The trigger function for InfraImmutableTaggerSM failed.
+      ActionsEnabled: true
+      OKActions: []
+      AlarmActions: []
+      InsufficientDataActions: []
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref TriggerFunction
+      Period: 60
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching

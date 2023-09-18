@@ -1,0 +1,24 @@
+Comment: A state machine that tags infrastructure CloudFormation cannot reach.
+StartAt: For each account
+States:
+  For each account:
+    Type: Map
+    ItemsPath: $.AccountIds
+    Parameters:
+      AccountId.$: $$.Map.Item.Value
+    MaxConcurrency: 1
+    Iterator:
+      StartAt: Tag EventRules for an Account
+      States:
+        Tag EventRules for an Account:
+          Type: Task
+          Resource: '${TagEventRulesFunctionArn}'
+          ResultPath: $.Result
+          Retry:
+            - ErrorEquals:
+                - States.TaskFailed
+              IntervalSeconds: 2
+              MaxAttempts: 5
+              BackoffRate: 1.25
+          End: true
+    End: true

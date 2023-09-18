@@ -1,0 +1,10 @@
+# Deployment configuration
+
+repo-name    = "Foundation-infra-immutable-tagger"
+part-of      = 'foundation'
+
+
+[SAM]
+stack-name   = "INFRA-infra-immutable-tagger"
+profile      = "admin-account"
+regions      = '{main-region}'
