@@ -1,8 +1,5 @@
 import os
-import json
-import botocore
 import boto3
-
 
 sts_client = boto3.client('sts')
 
@@ -16,40 +13,29 @@ def lambda_handler(data, _context):
     account_id = data['AccountId'].strip('"')
     print(f'Processing account {account_id}...')
 
-    client = get_client('events', account_id)
+    client = get_client('cloudwatch', account_id)
 
-    event_buses = get_event_buses(client)
+    alarms = get_alarms(client)
 
-    rules = get_rules(client, event_buses)
-
-    for rule in rules:
-        put_tags(client, rule)
+    for alarm in alarms:
+        put_tags(client, alarm)
 
     return True
 
 
-def get_event_buses(client):
+def get_alarms(client):
     result = []
-    response = client.list_event_buses()
-    for event_bus in response['EventBuses']:
-        result.append(event_bus['Name'])
+    paginator = client.get_paginator('describe_alarms')
+    for prefix in PREFIXES:
+        for page in paginator.paginate(AlarmNamePrefix=prefix):
+            result.extend(page['MetricAlarms'])  # Assuming we're dealing with Metric Alarms; adjust if needed
     return result
 
 
-def get_rules(client, event_buses):
-    result = []
-    paginator = client.get_paginator('list_rules')
-    for event_bus in event_buses:
-        for prefix in PREFIXES:
-            for page in paginator.paginate(NamePrefix=prefix, EventBusName=event_bus):
-                result.extend(page['Rules'])
-    return result
-
-
-def put_tags(client, rule):
-    print(rule['Name'])
+def put_tags(client, alarm):
+    print(alarm['AlarmName'])
     response = client.tag_resource(
-        ResourceARN=rule['Arn'],
+        ResourceARN=alarm['AlarmArn'],
         Tags=[
             {
                 'Key': 'infra:immutable',
@@ -62,7 +48,7 @@ def put_tags(client, rule):
 def get_client(client_type, account_id, role=ROLE_TO_ASSUME):
     other_session = sts_client.assume_role(
         RoleArn=f"arn:aws:iam::{account_id}:role/{role}",
-        RoleSessionName=f"tag_event_rules_{account_id}"
+        RoleSessionName=f"tag_cloudwatch_alarms_{account_id}"
     )
     access_key = other_session['Credentials']['AccessKeyId']
     secret_key = other_session['Credentials']['SecretAccessKey']

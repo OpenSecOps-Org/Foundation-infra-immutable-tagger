@@ -8,12 +8,25 @@ States:
       AccountId.$: $$.Map.Item.Value
     MaxConcurrency: 1
     Iterator:
-      StartAt: Tag EventRules for an Account
+      StartAt: Tag EventRules
       States:
-        Tag EventRules for an Account:
+      
+        Tag EventRules:
           Type: Task
           Resource: '${TagEventRulesFunctionArn}'
-          ResultPath: $.Result
+          ResultPath: null
+          Retry:
+            - ErrorEquals:
+                - States.TaskFailed
+              IntervalSeconds: 2
+              MaxAttempts: 5
+              BackoffRate: 1.25
+          Next: Tag Alarms
+      
+        Tag Alarms:
+          Type: Task
+          Resource: '${TagAlarmsFunctionArn}'
+          ResultPath: null
           Retry:
             - ErrorEquals:
                 - States.TaskFailed

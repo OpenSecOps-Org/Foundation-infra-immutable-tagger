@@ -3,7 +3,7 @@ Transform: AWS::Serverless-2016-10-31
 
 Globals:
   Function:
-    Runtime: python3.11
+    Runtime: python3.12
     Handler: app.lambda_handler
     Timeout: 900
     MemorySize: 160
@@ -91,9 +91,12 @@ Resources:
       DefinitionUri: statemachine/tag_infrastructure.asl.yaml
       DefinitionSubstitutions:
         TagEventRulesFunctionArn: !GetAtt TagEventRulesFunction.Arn
+        TagAlarmsFunctionArn: !GetAtt TagAlarmsFunction.Arn
       Policies:
         - LambdaInvokePolicy:
             FunctionName: !Ref TagEventRulesFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref TagAlarmsFunction
 
   TagEventRulesFunction:
     Type: AWS::Serverless::Function
@@ -118,6 +121,28 @@ Resources:
           ROLE_TO_ASSUME: !Ref RoleToAssume
           PREFIXES: !Ref Prefixes
 
+  TagAlarmsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/tag_alarms/
+      Policies:
+        - Statement:
+            - Sid: AssumeTheRole
+              Effect: Allow
+              Action:
+                - sts:AssumeRole
+              Resource: !Sub 'arn:aws:iam::*:role/${RoleToAssume}'
+            - Sid: MainPermissions
+              Effect: Allow
+              Action:
+                - cloudwatch:DescribeAlarms
+                - cloudwatch:TagResource
+              Resource: '*'
+      Environment:
+        Variables:
+          ROLE_TO_ASSUME: !Ref RoleToAssume
+          PREFIXES: !Ref Prefixes
+
 
   #-------------------------------------------------------------------------------
   #
@@ -133,10 +158,10 @@ Resources:
   #
   #-------------------------------------------------------------------------------
 
-  AlarmConfigureAccountForSecHub:
+  AlarmInfraImmutableTaggerSM:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: INFRA-InfraImmutableTaggerSM-Failure-MEDIUM
+      AlarmName: INFRA-InfraImmutableTagger-Failure-MEDIUM
       AlarmDescription: The state machine InfraImmutableTaggerSM failed.
       ActionsEnabled: true
       OKActions: []
