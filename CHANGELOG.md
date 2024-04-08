@@ -1,5 +1,8 @@
 # Change Log
 
+## v1.1.1
+    * Updated the README.
+
 ## v1.1.0
     * Added task to tag CloudWatch alarms, due to AWS' latest changes.
     * Switched to Python 3.12.

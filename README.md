@@ -6,10 +6,14 @@ it and schedules the account for processing. Also, a cron task is scheduled to p
 accounts once a day.
 
 Accounts are processed by a step machine which runs processing of all accounts in parallel.
-In the current implementation, the step machine performs only one task in the account: it
-looks for EventBridge Rules deployed by the Foundational installations by name. If they
-begin with "INFRA-" or "StackSet-INFRA" or any other configurable prefix, then they are
-tagged with the list of tags specified. (Check the parameters for the details.)
+In the current implementation, the step machine performs the following tasks: 
+
+1. It looks for EventBridge Rules deployed by the Foundational installations by name. If they
+   begin with "INFRA-" or "StackSet-INFRA" or any other configurable prefix, then they are
+   tagged with the list of tags specified. (Check the parameters for the details.)
+
+2. It looks for CloudWatch alarms following the same naming scheme and tags them in the same
+   way.
 
 In future, other resources may be tagged in the same way as necessary.
 
