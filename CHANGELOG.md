@@ -1,5 +1,8 @@
 # Change Log
 
+## v1.1.2
+    * `.python-version` file added for pyenv.
+
 ## v1.1.1
     * Updated the README.
 
