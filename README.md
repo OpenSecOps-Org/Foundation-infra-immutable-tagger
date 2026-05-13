@@ -1,6 +1,6 @@
 # Infra Immutable Tagger
 
-[![Daily CVE scan](https://github.com/OpenSecOps-Org/Foundation-infra-immutable-tagger/actions/workflows/daily-scan.yml/badge.svg)](https://github.com/OpenSecOps-Org/Foundation-infra-immutable-tagger/actions/workflows/daily-scan.yml) [![OpenSSF Scorecard](https://github.com/OpenSecOps-Org/Foundation-infra-immutable-tagger/actions/workflows/scorecard.yml/badge.svg)](https://github.com/OpenSecOps-Org/Foundation-infra-immutable-tagger/actions/workflows/scorecard.yml)
+[![Daily CVE scan](https://github.com/OpenSecOps-Org/Foundation-infra-immutable-tagger/actions/workflows/daily-scan.yml/badge.svg)](https://github.com/OpenSecOps-Org/Foundation-infra-immutable-tagger/actions/workflows/daily-scan.yml) [![OpenSSF Scorecard](https://github.com/OpenSecOps-Org/Foundation-infra-immutable-tagger/actions/workflows/scorecard.yml/badge.svg)](https://github.com/OpenSecOps-Org/Foundation-infra-immutable-tagger/actions/workflows/scorecard.yml) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12827/badge)](https://www.bestpractices.dev/projects/12827)
 
 Some CloudFormation resource types do not support tags, even though the underlying API does.
 This is a solution to this problem: when an account is created, the trigger function detects
